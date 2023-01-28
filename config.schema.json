@@ -1,5 +1,5 @@
 {
-  "pluginAlias": "ExampleHomebridgePlugin",
+  "pluginAlias": "homebridge-kwikset-halo",
   "pluginType": "platform",
   "singular": true,
   "schema": {
