@@ -1,7 +1,7 @@
 {
   "displayName": "Homebridge Kwikset Halo",
   "name": "homebridge-kwikset-halo",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A Homebridge plugin for Kwikset Halo locks",
   "license": "Apache-2.0",
   "repository": {
