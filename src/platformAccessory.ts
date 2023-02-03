@@ -68,6 +68,47 @@ export class KwiksetHaloAccessory {
      * The USER_DEFINED_SUBTYPE must be unique to the platform accessory (if you platform exposes multiple accessories, each accessory
      * can use the same sub type id.)
      */
+
+    apiRequest(this.platform.log, {
+      path: `prod_v1/devices_v2/${this.accessory.context.device.deviceid}`,
+      method: 'GET',
+    })
+      .then((response) => response.json())
+      .then((data: any) => data.data[0])
+      .then((lock) => {
+        let lockCurrentStatus;
+        let lockTargetStatus;
+
+        switch (lock.doorstatus) {
+          case 'Locked':
+            lockCurrentStatus = this.platform.Characteristic.LockCurrentState.SECURED;
+            lockTargetStatus = this.platform.Characteristic.LockTargetState.SECURED;
+            break;
+          case 'Unlocked':
+            lockCurrentStatus = this.platform.Characteristic.LockCurrentState.UNSECURED;
+            lockTargetStatus = this.platform.Characteristic.LockTargetState.UNSECURED;
+            break;
+          case 'Jammed':
+            lockCurrentStatus = this.platform.Characteristic.LockCurrentState.JAMMED;
+            break;
+          default:
+            lockCurrentStatus = this.platform.Characteristic.LockCurrentState.UNKNOWN;
+        }
+
+        this.lockStates.locked = lockCurrentStatus;
+        this.service.updateCharacteristic(
+          this.platform.Characteristic.LockCurrentState,
+          lockCurrentStatus,
+        );
+
+        if (lockTargetStatus) {
+          this.lockStates.isLocking = lockTargetStatus;
+          this.service.updateCharacteristic(
+            this.platform.Characteristic.LockTargetState,
+            lockTargetStatus,
+          );
+        }
+      });
   }
 
   /**
@@ -100,7 +141,7 @@ export class KwiksetHaloAccessory {
           device: 'Homebridge',
         }),
       }),
-    }).then((response) => {
+    }).then(async (response) => {
       if (response.ok) {
         switch (value) {
           case this.platform.Characteristic.LockTargetState.SECURED:
@@ -141,7 +182,7 @@ export class KwiksetHaloAccessory {
       method: 'GET',
     })
       .then((response) => response.json())
-      .then((data) => data.data[0])
+      .then((data: any) => data.data[0])
       .then((lock) => {
         let lockStatus;
 

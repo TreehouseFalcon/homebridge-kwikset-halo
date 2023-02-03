@@ -67,7 +67,7 @@ export class KwiksetHaloPlatform implements DynamicPlatformPlugin {
       method: 'GET',
     })
       .then((response) => response.json())
-      .then((data) => data.data);
+      .then((data: any) => data.data);
     const homeId = homes.find((home) => home.homename === this.config.homename).homeid;
 
     const locks = await apiRequest(this.log, {
@@ -75,7 +75,7 @@ export class KwiksetHaloPlatform implements DynamicPlatformPlugin {
       method: 'GET',
     })
       .then((response) => response.json())
-      .then((data) => data.data);
+      .then((data: any) => data.data);
 
     for (const lock of locks) {
       // generate a unique id for the accessory this should be generated from
