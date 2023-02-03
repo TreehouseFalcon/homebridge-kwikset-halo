@@ -10,10 +10,10 @@ import { Amplify, Auth } from 'aws-amplify';
 import * as constants from './const';
 import Express from 'express';
 import EventEmitter from 'events';
-import path from 'path';
 import ip from 'ip';
 import fs from 'fs';
 import fetch from 'node-fetch';
+import { INDEXHTML, SUCCESSHTML } from './statichtml';
 
 type Credentials = {
   idToken: string;
@@ -124,13 +124,18 @@ export const kwiksetLogin = async (config, log, api) => {
       let server: any = null;
       const mfaCodeSignal = new EventEmitter();
       const app = Express();
-      app.use(Express.static(path.resolve('static')));
+      app.get('/', (req, res) => {
+        res.send(INDEXHTML);
+      });
+      app.get('/success', (req, res) => {
+        res.send(SUCCESSHTML);
+      });
       app.use(Express.urlencoded({ extended: true }));
       app.post('/submitmfa', (req, res) => {
         mfaCodeSignal.emit('code', req.body.code);
         mfaCodeSignal.once('authFeedback', async (success) => {
           if (success) {
-            await res.redirect('/success.html');
+            await res.redirect('/success');
             setTimeout(() => {
               server?.close();
             }, 7000);
@@ -141,7 +146,7 @@ export const kwiksetLogin = async (config, log, api) => {
       });
 
       server = app.listen(config.mfaPort, () => {
-        log.info(`MFA server listening on http://${ip.address()}:${config.mfaPort}/index.html`);
+        log.info(`MFA server listening on http://${ip.address()}:${config.mfaPort}`);
       });
 
       let codeVerified = false;
