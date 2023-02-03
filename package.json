@@ -1,6 +1,5 @@
 {
-  "private": true,
-  "displayName": "homebridge-kwikset-halo",
+  "displayName": "Homebridge Kwikset Halo",
   "name": "homebridge-kwikset-halo",
   "version": "0.1.0",
   "description": "A Homebridge plugin for Kwikset Halo locks",
