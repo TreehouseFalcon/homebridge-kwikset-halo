@@ -14,6 +14,7 @@ import ip from 'ip';
 import fs from 'fs';
 import fetch from 'node-fetch';
 import { INDEXHTML, SUCCESSHTML } from './statichtml';
+import path from 'path';
 
 type Credentials = {
   idToken: string;
@@ -75,7 +76,7 @@ const logInWithStoredCreds = async (
 };
 
 export const kwiksetLogin = async (config, log, api) => {
-  const kwiksetSavePath = `${api.user.storagePath()}\\homebridge-kwikset-halo.json`;
+  const kwiksetSavePath = path.join(api.user.storagePath(), 'homebridge-kwikset-halo.json');
   log.debug(`Storage path: ${kwiksetSavePath}`);
 
   let savedCreds;
