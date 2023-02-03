@@ -2,7 +2,7 @@
   "private": true,
   "displayName": "homebridge-kwikset-halo",
   "name": "homebridge-kwikset-halo",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A Homebridge plugin for Kwikset Halo locks",
   "license": "Apache-2.0",
   "repository": {
