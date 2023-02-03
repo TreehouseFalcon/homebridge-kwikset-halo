@@ -5,11 +5,39 @@
   "schema": {
     "type": "object",
     "properties": {
-      "name": {
-        "title": "Name",
+      "email": {
+        "title": "Email",
+        "description": "Email to your Kwikset account",
         "type": "string",
         "required": true,
-        "default": "Example Dynamic Platform"
+        "placeholder": "test_user@domain.com",
+        "x-schema-form": {
+          "type": "email"
+        }
+      },
+      "password": {
+        "title": "Password",
+        "description": "Password to your Kwikset account",
+        "type": "string",
+        "required": true,
+        "placeholder": "password",
+        "x-schema-form": {
+          "type": "password"
+        }
+      },
+      "homename": {
+        "title": "Home name",
+        "description": "The home name in the Kwikset app to control",
+        "type": "string",
+        "required": true,
+        "placeholder": "Kwikset home name"
+      },
+      "mfaPort": {
+        "title": "MFA Server Port",
+        "description": "This is the port that the 2FA page runs on. You only need to change this if you have 2FA enabled on your account and already have something running on this port.",
+        "type": "number",
+        "required": false,
+        "default": 47279
       }
     }
   }

@@ -1,54 +1,62 @@
 import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge';
+import { apiRequest } from './kwikset';
 
-import { ExampleHomebridgePlatform } from './platform';
+import { KwiksetHaloPlatform } from './platform';
 
 /**
  * Platform Accessory
  * An instance of this class is created for each accessory your platform registers
  * Each accessory may expose multiple services of different service types.
  */
-export class ExamplePlatformAccessory {
+export class KwiksetHaloAccessory {
   private service: Service;
 
   /**
    * These are just used to create a working example
    * You should implement your own code to track the state of your accessory
    */
-  private exampleStates = {
-    On: false,
-    Brightness: 100,
+  private lockStates = {
+    locked: this.platform.Characteristic.LockCurrentState.UNSECURED,
+    isLocking: this.platform.Characteristic.LockTargetState.UNSECURED,
   };
 
   constructor(
-    private readonly platform: ExampleHomebridgePlatform,
+    private readonly platform: KwiksetHaloPlatform,
     private readonly accessory: PlatformAccessory,
   ) {
-
     // set accessory information
-    this.accessory.getService(this.platform.Service.AccessoryInformation)!
-      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Default-Manufacturer')
-      .setCharacteristic(this.platform.Characteristic.Model, 'Default-Model')
-      .setCharacteristic(this.platform.Characteristic.SerialNumber, 'Default-Serial');
+    this.accessory
+      .getService(this.platform.Service.AccessoryInformation)!
+      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Kwikset')
+      .setCharacteristic(
+        this.platform.Characteristic.Model,
+        this.accessory.context.device.modelnumber,
+      )
+      .setCharacteristic(this.platform.Characteristic.SerialNumber, 'Unknown');
 
     // get the LightBulb service if it exists, otherwise create a new LightBulb service
     // you can create multiple services for each accessory
-    this.service = this.accessory.getService(this.platform.Service.Lightbulb) || this.accessory.addService(this.platform.Service.Lightbulb);
+    this.service =
+      this.accessory.getService(this.platform.Service.LockMechanism) ||
+      this.accessory.addService(this.platform.Service.LockMechanism);
 
     // set the service name, this is what is displayed as the default name on the Home app
     // in this example we are using the name we stored in the `accessory.context` in the `discoverDevices` method.
-    this.service.setCharacteristic(this.platform.Characteristic.Name, accessory.context.device.exampleDisplayName);
+    this.service.setCharacteristic(
+      this.platform.Characteristic.Name,
+      accessory.context.device.devicename,
+    );
 
     // each service must implement at-minimum the "required characteristics" for the given service type
     // see https://developers.homebridge.io/#/service/Lightbulb
+    this.service
+      .getCharacteristic(this.platform.Characteristic.LockCurrentState)
+      .onGet(this.getIsLocked.bind(this));
 
-    // register handlers for the On/Off Characteristic
-    this.service.getCharacteristic(this.platform.Characteristic.On)
-      .onSet(this.setOn.bind(this))                // SET - bind to the `setOn` method below
-      .onGet(this.getOn.bind(this));               // GET - bind to the `getOn` method below
-
-    // register handlers for the Brightness Characteristic
-    this.service.getCharacteristic(this.platform.Characteristic.Brightness)
-      .onSet(this.setBrightness.bind(this));       // SET - bind to the 'setBrightness` method below
+    this.service
+      .getCharacteristic(this.platform.Characteristic.LockTargetState)
+      .onGet(this.getShouldLock.bind(this))
+      .onSet(this.setShouldLock.bind(this));
 
     /**
      * Creating multiple services of the same type.
@@ -60,53 +68,59 @@ export class ExamplePlatformAccessory {
      * The USER_DEFINED_SUBTYPE must be unique to the platform accessory (if you platform exposes multiple accessories, each accessory
      * can use the same sub type id.)
      */
-
-    // Example: add two "motion sensor" services to the accessory
-    const motionSensorOneService = this.accessory.getService('Motion Sensor One Name') ||
-      this.accessory.addService(this.platform.Service.MotionSensor, 'Motion Sensor One Name', 'YourUniqueIdentifier-1');
-
-    const motionSensorTwoService = this.accessory.getService('Motion Sensor Two Name') ||
-      this.accessory.addService(this.platform.Service.MotionSensor, 'Motion Sensor Two Name', 'YourUniqueIdentifier-2');
-
-    /**
-     * Updating characteristics values asynchronously.
-     *
-     * Example showing how to update the state of a Characteristic asynchronously instead
-     * of using the `on('get')` handlers.
-     * Here we change update the motion sensor trigger states on and off every 10 seconds
-     * the `updateCharacteristic` method.
-     *
-     */
-    let motionDetected = false;
-    setInterval(() => {
-      // EXAMPLE - inverse the trigger
-      motionDetected = !motionDetected;
-
-      // push the new value to HomeKit
-      motionSensorOneService.updateCharacteristic(this.platform.Characteristic.MotionDetected, motionDetected);
-      motionSensorTwoService.updateCharacteristic(this.platform.Characteristic.MotionDetected, !motionDetected);
-
-      this.platform.log.debug('Triggering motionSensorOneService:', motionDetected);
-      this.platform.log.debug('Triggering motionSensorTwoService:', !motionDetected);
-    }, 10000);
   }
 
   /**
    * Handle "SET" requests from HomeKit
    * These are sent when the user changes the state of an accessory, for example, turning on a Light bulb.
    */
-  async setOn(value: CharacteristicValue) {
+  async setShouldLock(value: CharacteristicValue) {
     // implement your own code to turn your device on/off
-    this.exampleStates.On = value as boolean;
+    this.lockStates.isLocking = value as any;
 
-    this.platform.log.debug('Set Characteristic On ->', value);
+    let action;
+    switch (value) {
+      case this.platform.Characteristic.LockTargetState.SECURED:
+        action = 'lock';
+        break;
+      case this.platform.Characteristic.LockTargetState.UNSECURED:
+        action = 'unlock';
+        break;
+      default:
+        this.platform.log.error(`Unrecognized characteristic value for setShouldLock: ${value}`);
+    }
+
+    apiRequest(this.platform.log, {
+      path: `prod_v1/devices/${this.accessory.context.device.deviceid}/status`,
+      method: 'PATCH',
+      body: JSON.stringify({
+        action,
+        source: JSON.stringify({
+          name: 'Homebridge',
+          device: 'Homebridge',
+        }),
+      }),
+    }).then((response) => {
+      if (response.ok) {
+        switch (value) {
+          case this.platform.Characteristic.LockTargetState.SECURED:
+            this.lockStates.locked = this.platform.Characteristic.LockCurrentState.SECURED;
+            break;
+          case this.platform.Characteristic.LockTargetState.UNSECURED:
+            this.lockStates.locked = this.platform.Characteristic.LockCurrentState.UNSECURED;
+            break;
+          default:
+            this.lockStates.locked = this.platform.Characteristic.LockCurrentState.UNKNOWN;
+        }
+      }
+    });
   }
 
   /**
    * Handle the "GET" requests from HomeKit
    * These are sent when HomeKit wants to know the current state of the accessory, for example, checking if a Light bulb is on.
    *
-   * GET requests should return as fast as possbile. A long delay here will result in
+   * GET requests should return as fast as possible. A long delay here will result in
    * HomeKit being unresponsive and a bad user experience in general.
    *
    * If your device takes time to respond you should update the status of your device
@@ -115,27 +129,66 @@ export class ExamplePlatformAccessory {
    * @example
    * this.service.updateCharacteristic(this.platform.Characteristic.On, true)
    */
-  async getOn(): Promise<CharacteristicValue> {
+  async getIsLocked(): Promise<CharacteristicValue> {
     // implement your own code to check if the device is on
-    const isOn = this.exampleStates.On;
-
-    this.platform.log.debug('Get Characteristic On ->', isOn);
+    const isLocked = this.lockStates.locked;
 
     // if you need to return an error to show the device as "Not Responding" in the Home app:
     // throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
 
-    return isOn;
+    apiRequest(this.platform.log, {
+      path: `prod_v1/devices_v2/${this.accessory.context.device.deviceid}`,
+      method: 'GET',
+    })
+      .then((response) => response.json())
+      .then((data) => data.data[0])
+      .then((lock) => {
+        let lockStatus;
+
+        switch (lock.doorstatus) {
+          case 'Locked':
+            lockStatus = this.platform.Characteristic.LockCurrentState.SECURED;
+            break;
+          case 'Unlocked':
+            lockStatus = this.platform.Characteristic.LockCurrentState.UNSECURED;
+            break;
+          case 'Jammed':
+            lockStatus = this.platform.Characteristic.LockCurrentState.JAMMED;
+            break;
+          default:
+            lockStatus = this.platform.Characteristic.LockCurrentState.UNKNOWN;
+        }
+
+        this.service.updateCharacteristic(
+          this.platform.Characteristic.LockCurrentState,
+          lockStatus,
+        );
+        this.lockStates.locked = lockStatus;
+      });
+
+    return isLocked;
   }
 
   /**
-   * Handle "SET" requests from HomeKit
-   * These are sent when the user changes the state of an accessory, for example, changing the Brightness
+   * Handle the "GET" requests from HomeKit
+   * These are sent when HomeKit wants to know the current state of the accessory, for example, checking if a Light bulb is on.
+   *
+   * GET requests should return as fast as possible. A long delay here will result in
+   * HomeKit being unresponsive and a bad user experience in general.
+   *
+   * If your device takes time to respond you should update the status of your device
+   * asynchronously instead using the `updateCharacteristic` method instead.
+
+   * @example
+   * this.service.updateCharacteristic(this.platform.Characteristic.On, true)
    */
-  async setBrightness(value: CharacteristicValue) {
-    // implement your own code to set the brightness
-    this.exampleStates.Brightness = value as number;
+  async getShouldLock(): Promise<CharacteristicValue> {
+    // implement your own code to check if the device is on
+    const isLocking = this.lockStates.isLocking;
 
-    this.platform.log.debug('Set Characteristic Brightness -> ', value);
+    // if you need to return an error to show the device as "Not Responding" in the Home app:
+    // throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+
+    return isLocking;
   }
-
 }

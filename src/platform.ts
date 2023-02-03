@@ -1,14 +1,23 @@
-import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service, Characteristic } from 'homebridge';
+import {
+  API,
+  DynamicPlatformPlugin,
+  Logger,
+  PlatformAccessory,
+  PlatformConfig,
+  Service,
+  Characteristic,
+} from 'homebridge';
 
-import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
-import { ExamplePlatformAccessory } from './platformAccessory';
+import { PLATFORM_NAME, PLUGIN_NAME } from './const';
+import { KwiksetHaloAccessory } from './platformAccessory';
+import { apiRequest, kwiksetLogin } from './kwikset';
 
 /**
  * HomebridgePlatform
  * This class is the main constructor for your plugin, this is where you should
  * parse the user config and discover/register accessories with Homebridge.
  */
-export class ExampleHomebridgePlatform implements DynamicPlatformPlugin {
+export class KwiksetHaloPlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service = this.api.hap.Service;
   public readonly Characteristic: typeof Characteristic = this.api.hap.Characteristic;
 
@@ -49,25 +58,49 @@ export class ExampleHomebridgePlatform implements DynamicPlatformPlugin {
    * Accessories must only be registered once, previously created accessories
    * must not be registered again to prevent "duplicate UUID" errors.
    */
-  discoverDevices() {
+  async discoverDevices() {
+    this.log.debug('Discovering devices');
+    await kwiksetLogin(this.config, this.log, this.api);
 
-    // EXAMPLE ONLY
-    // A real plugin you would discover accessories from the local network, cloud services
-    // or a user-defined array in the platform config.
-    const exampleDevices = [
-      {
-        exampleUniqueId: 'ABCD',
-        exampleDisplayName: 'Bedroom',
-      },
-      {
-        exampleUniqueId: 'EFGH',
-        exampleDisplayName: 'Kitchen',
-      },
-    ];
+    const homes = await apiRequest(this.log, {
+      path: 'prod_v1/users/me/homes?top=200',
+      method: 'GET',
+    })
+      .then((response) => response.json())
+      .then((data) => data.data);
+    const homeId = homes.find((home) => home.homename === this.config.homename).homeid;
+
+    const locks = await apiRequest(this.log, {
+      path: `prod_v1/homes/${homeId}/devices`,
+      method: 'GET',
+    })
+      .then((response) => response.json())
+      .then((data) => data.data);
+
+    for (const lock of locks) {
+      // generate a unique id for the accessory this should be generated from
+      // something globally unique, but constant, for example, the device serial
+      // number or MAC address
+      const uuid = this.api.hap.uuid.generate(lock.deviceid);
+
+      // see if an accessory with the same uuid has already been registered and restored from
+      // the cached devices we stored in the `configureAccessory` method above
+      const existingAccessory = this.accessories.find((accessory) => accessory.UUID === uuid);
+
+      if (existingAccessory) {
+        existingAccessory.context.device = lock;
+        this.api.updatePlatformAccessories([existingAccessory]);
+        new KwiksetHaloAccessory(this, existingAccessory);
+      } else {
+        const accessory = new this.api.platformAccessory(lock.devicename, uuid);
+        accessory.context.device = lock;
+        new KwiksetHaloAccessory(this, accessory);
+        this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+      }
+    }
 
     // loop over the discovered devices and register each one if it has not already been registered
-    for (const device of exampleDevices) {
-
+    /*for (const device of exampleDevices) {
       // generate a unique id for the accessory this should be generated from
       // something globally unique, but constant, for example, the device serial
       // number or MAC address
@@ -75,7 +108,7 @@ export class ExampleHomebridgePlatform implements DynamicPlatformPlugin {
 
       // see if an accessory with the same uuid has already been registered and restored from
       // the cached devices we stored in the `configureAccessory` method above
-      const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
+      const existingAccessory = this.accessories.find((accessory) => accessory.UUID === uuid);
 
       if (existingAccessory) {
         // the accessory already exists
@@ -111,6 +144,6 @@ export class ExampleHomebridgePlatform implements DynamicPlatformPlugin {
         // link the accessory to your platform
         this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
       }
-    }
+    }*/
   }
 }
