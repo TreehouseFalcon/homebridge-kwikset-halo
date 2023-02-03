@@ -12,6 +12,7 @@ import Express from 'express';
 import EventEmitter from 'events';
 import ip from 'ip';
 import fs from 'fs';
+import fetch from 'node-fetch';
 
 type Credentials = {
   idToken: string;
