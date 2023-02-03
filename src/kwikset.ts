@@ -10,6 +10,7 @@ import { Amplify, Auth } from 'aws-amplify';
 import * as constants from './const';
 import Express from 'express';
 import EventEmitter from 'events';
+import path from 'path';
 import ip from 'ip';
 import fs from 'fs';
 import fetch from 'node-fetch';
@@ -123,7 +124,7 @@ export const kwiksetLogin = async (config, log, api) => {
       let server: any = null;
       const mfaCodeSignal = new EventEmitter();
       const app = Express();
-      app.use(Express.static('static'));
+      app.use(Express.static(path.resolve('static')));
       app.use(Express.urlencoded({ extended: true }));
       app.post('/submitmfa', (req, res) => {
         mfaCodeSignal.emit('code', req.body.code);
