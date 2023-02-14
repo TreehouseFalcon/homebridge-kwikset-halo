@@ -22,6 +22,20 @@ type Credentials = {
   refreshToken: string;
 };
 
+Amplify.configure({
+  Auth: {
+    region: constants.COGNITO_AWS_REGION,
+    userPoolId: constants.COGNITO_USER_POOL_ID,
+    userPoolWebClientId: constants.COGNITO_USER_POOL_CLIENT,
+    authenticationFlowType: 'CUSTOM_AUTH',
+  },
+});
+
+// logging in via refresh token: https://github.com/aws-amplify/amplify-js/issues/2560#issuecomment-501076634
+// create session from tokens:  https://github.com/aws-amplify/amplify-js/issues/2253
+// amplify doesn't recognize session: https://github.com/aws-amplify/amplify-js/issues/8632
+// yeaj: https://github.com/aws-amplify/amplify-js/issues/5167
+
 let idToken: string | undefined;
 
 const getCredentialsFromSession = async (user): Promise<Credentials | null> => {
@@ -60,10 +74,12 @@ const logInWithStoredCreds = async (
   const cognitoRefreshToken = new CognitoRefreshToken({
     RefreshToken: refreshToken,
   });
-  const user = new CognitoUser({
+
+  let user = new CognitoUser({
     Username: config.email,
     Pool: userPool,
   });
+  user = await Auth.signIn(config.email, config.password);
   user.setSignInUserSession(
     new CognitoUserSession({
       AccessToken: cognitoAccessToken,
@@ -83,17 +99,6 @@ export const kwiksetLogin = async (config, log, api) => {
   if (fs.existsSync(kwiksetSavePath)) {
     savedCreds = JSON.parse(fs.readFileSync(kwiksetSavePath, 'utf8'));
   }
-
-  log.debug('Running login...');
-
-  Amplify.configure({
-    Auth: {
-      region: constants.COGNITO_AWS_REGION,
-      userPoolId: constants.COGNITO_USER_POOL_ID,
-      userPoolWebClientId: constants.COGNITO_USER_POOL_CLIENT,
-      authenticationFlowType: 'CUSTOM_AUTH',
-    },
-  });
 
   log.debug('Logging in via cached tokens');
 
@@ -183,7 +188,23 @@ export const kwiksetLogin = async (config, log, api) => {
     }
   }
 
-  idToken = credentials?.idToken;
+  const refreshCreds = async () => {
+    const user = await Auth.currentAuthenticatedUser();
+    await new Promise<void>((resolve) => {
+      user.refreshSession(user.getSignInUserSession().getRefreshToken(), (err, session) => {
+        if (err) {
+          log.error(`An error occurred refreshing session: ${err}`);
+          return;
+        }
+
+        idToken = session.idToken.jwtToken;
+        resolve();
+      });
+    });
+  };
+
+  setInterval(refreshCreds, 10 * 60 * 1000);
+  await refreshCreds();
   log.info('Logged in!');
 };
 
