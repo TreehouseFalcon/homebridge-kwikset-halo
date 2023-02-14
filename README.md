@@ -17,11 +17,23 @@ Alternatively, you may install the plugin via CLI:
   "platforms": [
     {
       "platform": "homebridge-kwikset-halo",
-      "email": "john.doe@fastmail.com", // Email for your Kwikset Halo mobile app login
-      "password": "PASSWORD_HERE", // Password for your Kwikset Halo mobile app login
-      "mfaPort": 47279, // Don't change this unless there's port overlap on your local network
-      "homeName": "Home Sweet Home" // The name of your home (exactly as it appears) in your Kwikset mobile app
+      "email": "john.doe@fastmail.com",
+      "password": "PASSWORD_HERE",
+      "homeName": "Home Sweet Home",
+      "mfaPort": 47279
     }
   ]
 }
 ```
+
+### Required config:
+
+**`email`**: Email for your Kwikset Halo mobile app login
+
+**`password`**: Password for your Kwikset Halo mobile app login
+
+**`homeName`**: The name of your home (exactly as it appears) in your Kwikset mobile app
+
+### Optional config:
+
+**`mfaPort`**: Don't change this unless there's port overlap on your local network
