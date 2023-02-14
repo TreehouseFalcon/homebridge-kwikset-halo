@@ -36,7 +36,25 @@ export class KwiksetHaloPlatform implements DynamicPlatformPlugin {
     // in order to ensure they weren't added to homebridge already. This event can also be used
     // to start discovery of new accessories.
     this.api.on('didFinishLaunching', () => {
-      log.debug('Executed didFinishLaunching callback');
+      if (!this.config.email) {
+        log.error('Invalid email');
+        return;
+      }
+      if (!this.config.password) {
+        log.error('Invalid password');
+        return;
+      }
+      if (!this.config.homeName) {
+        log.error('Invalid home name');
+        return;
+      }
+
+      const mfaPort = Number(this.config.mfaPort);
+      if (mfaPort && 1024 <= mfaPort && mfaPort <= 65535) {
+        log.error('Invalid MFA port (must be between 1024 and 65535)');
+        return;
+      }
+
       // run the method to discover / register your devices as accessories
       this.discoverDevices();
     });
