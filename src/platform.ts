@@ -50,7 +50,7 @@ export class KwiksetHaloPlatform implements DynamicPlatformPlugin {
       }
 
       const mfaPort = Number(this.config.mfaPort);
-      if (mfaPort && 1024 <= mfaPort && mfaPort <= 65535) {
+      if (!mfaPort || 1024 > mfaPort || mfaPort > 65535) {
         log.error('Invalid MFA port (must be between 1024 and 65535)');
         return;
       }
