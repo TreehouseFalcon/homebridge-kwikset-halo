@@ -1,6 +1,7 @@
 # Homebridge plugin for Kwikset Halo locks
 
 This plugin allows you to integrate your Kwikset Halo locks with HomeKit.
+Pull requests are welcome!
 
 ## Installation
 
@@ -38,7 +39,13 @@ Alternatively, you may install the plugin via CLI:
 
 **`mfaPort`**: Don't change this unless there's port overlap on your local network
 
-## Known caveats:
+## Known caveats
 
 - There is no officially supported API for Kwikset locks, so this can break without notice.
 - Right now this plugin only supports the ability to lock and unlock your locks. LED status indicators are not implemented.
+
+## Special thanks
+
+- [aiokwikset]: This library made this plugin possible by exposing existing web APIs for Kwikset Halo locks
+
+[aiokwikset]: https://pypi.org/project/aiokwikset/
