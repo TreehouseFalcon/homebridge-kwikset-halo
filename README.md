@@ -42,4 +42,3 @@ Alternatively, you may install the plugin via CLI:
 
 - There is no officially supported API for Kwikset locks, so this can break without notice.
 - Right now this plugin only supports the ability to lock and unlock your locks. LED status indicators are not implemented.
-- Out of abundance of caution, I am holding off adding "actual state reflection" in the Home app as Kwikset might get mad if they see a bunch of machines pinging the status of locks on an interval. I'll get around to adding a 5-10 minute update interval to reflect manual lock use eventually.
