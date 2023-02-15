@@ -222,3 +222,12 @@ export const apiRequest = async (log, opts: { path: string; method: string; body
     body: opts.body,
   });
 };
+
+export const fetchDevices = (log, homeId) => {
+  return apiRequest(log, {
+    path: `prod_v1/homes/${homeId}/devices`,
+    method: 'GET',
+  })
+    .then((response) => response.json())
+    .then((data: any) => data.data);
+};

@@ -6,11 +6,12 @@ import {
   PlatformConfig,
   Service,
   Characteristic,
+  UnknownContext,
 } from 'homebridge';
 
-import { PLATFORM_NAME, PLUGIN_NAME } from './const';
+import { PLATFORM_NAME, PLUGIN_NAME, UPDATE_ACTUAL_LOCK_STATE_INTERVAL } from './const';
 import { KwiksetHaloAccessory } from './platformAccessory';
-import { apiRequest, kwiksetLogin } from './kwikset';
+import { apiRequest, fetchDevices, kwiksetLogin } from './kwikset';
 
 /**
  * HomebridgePlatform
@@ -23,6 +24,8 @@ export class KwiksetHaloPlatform implements DynamicPlatformPlugin {
 
   // this is used to track restored cached accessories
   public readonly accessories: PlatformAccessory[] = [];
+
+  public homeId = '';
 
   constructor(
     public readonly log: Logger,
@@ -65,9 +68,6 @@ export class KwiksetHaloPlatform implements DynamicPlatformPlugin {
    * It should be used to setup event handlers for characteristics and update respective values.
    */
   configureAccessory(accessory: PlatformAccessory) {
-    this.log.info('Loading accessory from cache:', accessory.displayName);
-
-    // add the restored accessory to the accessories cache so we can track if it has already been registered
     this.accessories.push(accessory);
   }
 
@@ -86,23 +86,13 @@ export class KwiksetHaloPlatform implements DynamicPlatformPlugin {
     })
       .then((response) => response.json())
       .then((data: any) => data.data);
-    const homeId = homes.find((home) => home.homename === this.config.homeName).homeid;
+    this.homeId = homes.find((home) => home.homename === this.config.homeName).homeid;
 
-    const locks = await apiRequest(this.log, {
-      path: `prod_v1/homes/${homeId}/devices`,
-      method: 'GET',
-    })
-      .then((response) => response.json())
-      .then((data: any) => data.data);
+    const locks = await fetchDevices(this.log, this.homeId);
 
     for (const lock of locks) {
-      // generate a unique id for the accessory this should be generated from
-      // something globally unique, but constant, for example, the device serial
-      // number or MAC address
       const uuid = this.api.hap.uuid.generate(lock.deviceid);
 
-      // see if an accessory with the same uuid has already been registered and restored from
-      // the cached devices we stored in the `configureAccessory` method above
       const existingAccessory = this.accessories.find((accessory) => accessory.UUID === uuid);
 
       if (existingAccessory) {
@@ -110,58 +100,66 @@ export class KwiksetHaloPlatform implements DynamicPlatformPlugin {
         this.api.updatePlatformAccessories([existingAccessory]);
         new KwiksetHaloAccessory(this, existingAccessory);
       } else {
+        this.log.info(`Found new ${lock.modelnumber} device: ${lock.devicename}`);
         const accessory = new this.api.platformAccessory(lock.devicename, uuid);
         accessory.context.device = lock;
         new KwiksetHaloAccessory(this, accessory);
         this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
       }
+
+      if (lock.batterypercentage <= 10) {
+        this.log.warn(
+          `${lock.devicename} has a low battery (${lock.batterypercentage}% - "${lock.batterystatus}"). Consider replacing.`,
+        );
+      }
     }
 
-    // loop over the discovered devices and register each one if it has not already been registered
-    /*for (const device of exampleDevices) {
-      // generate a unique id for the accessory this should be generated from
-      // something globally unique, but constant, for example, the device serial
-      // number or MAC address
-      const uuid = this.api.hap.uuid.generate(device.exampleUniqueId);
+    const staleAccessories: PlatformAccessory<UnknownContext>[] = [];
+    this.accessories.forEach((lockAccessory) => {
+      const foundLockFromApi = locks.some((cachedLock) => {
+        return lockAccessory.context.device.deviceid === cachedLock.deviceid;
+      });
 
-      // see if an accessory with the same uuid has already been registered and restored from
-      // the cached devices we stored in the `configureAccessory` method above
-      const existingAccessory = this.accessories.find((accessory) => accessory.UUID === uuid);
-
-      if (existingAccessory) {
-        // the accessory already exists
-        this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
-
-        // if you need to update the accessory.context then you should run `api.updatePlatformAccessories`. eg.:
-        // existingAccessory.context.device = device;
-        // this.api.updatePlatformAccessories([existingAccessory]);
-
-        // create the accessory handler for the restored accessory
-        // this is imported from `platformAccessory.ts`
-        new ExamplePlatformAccessory(this, existingAccessory);
-
-        // it is possible to remove platform accessories at any time using `api.unregisterPlatformAccessories`, eg.:
-        // remove platform accessories when no longer present
-        // this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [existingAccessory]);
-        // this.log.info('Removing existing accessory from cache:', existingAccessory.displayName);
-      } else {
-        // the accessory does not yet exist, so we need to create it
-        this.log.info('Adding new accessory:', device.exampleDisplayName);
-
-        // create a new accessory
-        const accessory = new this.api.platformAccessory(device.exampleDisplayName, uuid);
-
-        // store a copy of the device object in the `accessory.context`
-        // the `context` property can be used to store any data about the accessory you may need
-        accessory.context.device = device;
-
-        // create the accessory handler for the newly create accessory
-        // this is imported from `platformAccessory.ts`
-        new ExamplePlatformAccessory(this, accessory);
-
-        // link the accessory to your platform
-        this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+      if (!foundLockFromApi) {
+        this.log.warn(
+          `Found stale accessory: ${lockAccessory.context.device.devicename} (${lockAccessory.context.device.deviceid})`,
+        );
+        staleAccessories.push(lockAccessory);
       }
-    }*/
+    });
+    if (staleAccessories.length > 0) {
+      this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, staleAccessories);
+    }
+
+    setInterval(() => {
+      this.reflectActualState();
+    }, UPDATE_ACTUAL_LOCK_STATE_INTERVAL);
+  }
+
+  async reflectActualState() {
+    const locks = await fetchDevices(this.log, this.homeId);
+
+    for (const accessory of this.accessories) {
+      const service = accessory.getService(this.Service.LockMechanism);
+      service?.updateCharacteristic(
+        this.Characteristic.LockCurrentState,
+        this.getLockStateFromLockStatus(
+          locks.find((lock) => lock.deviceid === accessory.context.device.deviceid).lockstatus,
+        ),
+      );
+    }
+  }
+
+  getLockStateFromLockStatus(status: string) {
+    switch (status) {
+      case 'Locked':
+        return this.Characteristic.LockCurrentState.SECURED;
+      case 'Unlocked':
+        return this.Characteristic.LockCurrentState.UNSECURED;
+      case 'Jammed':
+        return this.Characteristic.LockCurrentState.JAMMED;
+      default:
+        return this.Characteristic.LockCurrentState.UNKNOWN;
+    }
   }
 }

@@ -9,7 +9,7 @@ import { KwiksetHaloPlatform } from './platform';
  * Each accessory may expose multiple services of different service types.
  */
 export class KwiksetHaloAccessory {
-  private service: Service;
+  public service: Service;
 
   /**
    * These are just used to create a working example
@@ -76,24 +76,12 @@ export class KwiksetHaloAccessory {
       .then((response) => response.json())
       .then((data: any) => data.data[0])
       .then((lock) => {
-        let lockCurrentStatus;
-        let lockTargetStatus;
-
-        switch (lock.doorstatus) {
-          case 'Locked':
-            lockCurrentStatus = this.platform.Characteristic.LockCurrentState.SECURED;
-            lockTargetStatus = this.platform.Characteristic.LockTargetState.SECURED;
-            break;
-          case 'Unlocked':
-            lockCurrentStatus = this.platform.Characteristic.LockCurrentState.UNSECURED;
-            lockTargetStatus = this.platform.Characteristic.LockTargetState.UNSECURED;
-            break;
-          case 'Jammed':
-            lockCurrentStatus = this.platform.Characteristic.LockCurrentState.JAMMED;
-            break;
-          default:
-            lockCurrentStatus = this.platform.Characteristic.LockCurrentState.UNKNOWN;
-        }
+        const lockCurrentStatus = this.platform.getLockStateFromLockStatus(lock.doorstatus);
+        const lockTargetStatus =
+          lockCurrentStatus === this.platform.Characteristic.LockCurrentState.SECURED ||
+          lockCurrentStatus === this.platform.Characteristic.LockCurrentState.UNSECURED
+            ? lockCurrentStatus
+            : undefined;
 
         this.lockStates.locked = lockCurrentStatus;
         this.service.updateCharacteristic(
