@@ -16,4 +16,4 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           generate_release_notes: true
-          token: { { secrets.RELEASE_TOKEN } }
+          token: ${{ secrets.RELEASE_TOKEN }}
