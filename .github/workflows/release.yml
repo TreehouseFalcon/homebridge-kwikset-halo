@@ -9,7 +9,11 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           generate_release_notes: true
+          token: { { secrets.RELEASE_TOKEN } }
