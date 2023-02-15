@@ -153,6 +153,11 @@ export class KwiksetHaloAccessory {
           default:
             this.lockStates.locked = this.platform.Characteristic.LockCurrentState.UNKNOWN;
         }
+
+        this.service.updateCharacteristic(
+          this.platform.Characteristic.LockCurrentState,
+          this.lockStates.locked,
+        );
       }
     });
   }
