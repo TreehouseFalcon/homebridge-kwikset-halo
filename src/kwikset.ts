@@ -31,11 +31,6 @@ Amplify.configure({
   },
 });
 
-// logging in via refresh token: https://github.com/aws-amplify/amplify-js/issues/2560#issuecomment-501076634
-// create session from tokens:  https://github.com/aws-amplify/amplify-js/issues/2253
-// amplify doesn't recognize session: https://github.com/aws-amplify/amplify-js/issues/8632
-// yeaj: https://github.com/aws-amplify/amplify-js/issues/5167
-
 let idToken: string | undefined;
 
 const getCredentialsFromSession = async (user): Promise<Credentials | null> => {
@@ -57,6 +52,7 @@ const getCredentialsFromSession = async (user): Promise<Credentials | null> => {
 
 const logInWithStoredCreds = async (
   config,
+  log,
   idToken,
   accessToken,
   refreshToken,
@@ -75,23 +71,32 @@ const logInWithStoredCreds = async (
     RefreshToken: refreshToken,
   });
 
-  let user = new CognitoUser({
+  let user: CognitoUser | null = new CognitoUser({
     Username: config.email,
     Pool: userPool,
   });
-  user = await Auth.signIn(config.email, config.password);
-  user.setSignInUserSession(
-    new CognitoUserSession({
-      AccessToken: cognitoAccessToken,
-      IdToken: cognitoIdToken,
-      RefreshToken: cognitoRefreshToken,
-    }),
-  );
+  user = await Auth.signIn(config.email, config.password).catch((err) => {
+    log.error(`Failed to sign in for stored creds login attempt: ${err}`);
+  });
 
-  return getCredentialsFromSession(user);
+  if (user) {
+    user.setSignInUserSession(
+      new CognitoUserSession({
+        AccessToken: cognitoAccessToken,
+        IdToken: cognitoIdToken,
+        RefreshToken: cognitoRefreshToken,
+      }),
+    );
+
+    return getCredentialsFromSession(user);
+  }
+
+  return null;
 };
 
 export const kwiksetLogin = async (config, log, api) => {
+  log.debug('Running kwikset login');
+
   const kwiksetSavePath = path.join(api.user.storagePath(), 'homebridge-kwikset-halo.json');
   log.debug(`Storage path: ${kwiksetSavePath}`);
 
@@ -105,6 +110,7 @@ export const kwiksetLogin = async (config, log, api) => {
   let credentials = savedCreds
     ? await logInWithStoredCreds(
         config,
+        log,
         savedCreds.idToken,
         savedCreds.accessToken,
         savedCreds.refreshToken,
@@ -112,12 +118,13 @@ export const kwiksetLogin = async (config, log, api) => {
     : null;
   if (!credentials) {
     log.warn('Failed to login with cached tokens, reauthenticating...');
+
     let user;
     try {
       user = await Auth.signIn(config.email, config.password);
     } catch (err) {
       log.error(`Failed to log in: ${err} - Make sure your username and password are correct.`);
-      return;
+      return false;
     }
 
     if (user.challengeName === 'CUSTOM_CHALLENGE') {
@@ -185,6 +192,7 @@ export const kwiksetLogin = async (config, log, api) => {
       log.debug('Credentials saved!');
     } else {
       log.error(`Unknown auth challenge name ${user.challengeName}`);
+      return false;
     }
   }
 
@@ -206,6 +214,7 @@ export const kwiksetLogin = async (config, log, api) => {
   setInterval(refreshCreds, 10 * 60 * 1000);
   await refreshCreds();
   log.info('Logged in!');
+  return true;
 };
 
 export const apiRequest = async (log, opts: { path: string; method: string; body?: any }) => {

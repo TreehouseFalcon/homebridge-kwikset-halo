@@ -10,7 +10,7 @@ import {
 } from 'homebridge';
 
 import { PLATFORM_NAME, PLUGIN_NAME, UPDATE_ACTUAL_LOCK_STATE_INTERVAL } from './const';
-import { KwiksetHaloAccessory } from './platformAccessory';
+import { KwiksetHaloAccessory } from './lock';
 import { apiRequest, fetchDevices, kwiksetLogin } from './kwikset';
 
 /**

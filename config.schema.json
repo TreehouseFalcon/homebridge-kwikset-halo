@@ -10,7 +10,7 @@
         "description": "Email to your Kwikset account",
         "type": "string",
         "required": true,
-        "placeholder": "test_user@domain.com",
+        "placeholder": "john.doer@fastmail.com",
         "x-schema-form": {
           "type": "email"
         }
@@ -30,7 +30,7 @@
         "description": "The home name in the Kwikset app to control",
         "type": "string",
         "required": true,
-        "placeholder": "Kwikset home name"
+        "placeholder": "Home Sweet Home"
       },
       "mfaPort": {
         "title": "MFA Server Port",
