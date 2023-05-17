@@ -197,10 +197,13 @@ export class KwiksetHaloAccessory {
           this.platform.Characteristic.LockCurrentState,
           lockStatus,
         );
-        if (lockStatus != this.lockStates.locked) {
+        if (lockStatus !== this.lockStates.locked) {
           // the lock has been manually operated, so we sync LockTargetState too.
           this.lockStates.isLocking = lockStatus;
-          this.service.updateCharacteristic(this.platform.Characteristic.LockTargetState, lockStatus);
+          this.service.updateCharacteristic(
+            this.platform.Characteristic.LockTargetState,
+            lockStatus,
+          );
         }
         this.lockStates.locked = lockStatus;
       });
