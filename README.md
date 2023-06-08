@@ -39,6 +39,10 @@ Alternatively, you may install the plugin via CLI:
 
 **`mfaPort`**: Don't change this unless there's port overlap on your local network
 
+## Multi-factor authentication
+
+If you have multi-factor authentication set up on your Kwikset account, read the plugin logs for a link to the localhost page to enter the code.
+
 ## Known caveats
 
 - There is no officially supported API for Kwikset locks, so this can break without notice.
