@@ -1,6 +1,6 @@
 import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge';
 import { apiRequest } from './kwikset';
-
+import { UPDATE_ACTUAL_LOCK_STATE_INTERVAL, LOW_BATTERY_LEVEL } from './const';
 import { KwiksetHaloPlatform } from './platform';
 
 /**
@@ -12,7 +12,6 @@ export class KwiksetHaloAccessory {
   public service: Service;
   public batteryservice: Service;
   private batterylevel;
-  lowBatteryLevel = 40;
 
   /**
    * These are just used to create a working example
@@ -53,12 +52,7 @@ export class KwiksetHaloAccessory {
     // each service must implement at-minimum the "required characteristics" for the given service type
     // see https://developers.homebridge.io/#/service/Lightbulb
     this.service
-      .getCharacteristic(this.platform.Characteristic.LockCurrentState)
-      .onGet(this.getIsLocked.bind(this));
-
-    this.service
       .getCharacteristic(this.platform.Characteristic.LockTargetState)
-      .onGet(this.getShouldLock.bind(this))
       .onSet(this.setShouldLock.bind(this));
 
     // get the Battery service if it exists, otherwise create a new Battery service
@@ -66,11 +60,6 @@ export class KwiksetHaloAccessory {
     this.batteryservice =
       this.accessory.getService(this.platform.Service.Battery) ||
       this.accessory.addService(this.platform.Service.Battery);
-
-    // create handlers for required characteristics
-    this.batteryservice
-      .getCharacteristic(this.platform.Characteristic.StatusLowBattery)
-      .onGet(this.handleStatusLowBatteryGet.bind(this));
 
     /**
      * Creating multiple services of the same type.
@@ -82,7 +71,13 @@ export class KwiksetHaloAccessory {
      * The USER_DEFINED_SUBTYPE must be unique to the platform accessory (if you platform exposes multiple accessories, each accessory
      * can use the same sub type id.)
      */
+    this.pollLock();
+    setInterval(() => {
+      this.pollLock();
+    }, UPDATE_ACTUAL_LOCK_STATE_INTERVAL);
+  }
 
+  async pollLock() {
     apiRequest(this.platform.log, {
       path: `prod_v1/devices_v2/${this.accessory.context.device.deviceid}`,
       method: 'GET',
@@ -90,32 +85,53 @@ export class KwiksetHaloAccessory {
       .then((response) => response.json())
       .then((data: any) => data.data[0])
       .then((lock) => {
-        const lockCurrentStatus = this.platform.getLockStateFromLockStatus(lock.doorstatus);
-        const lockTargetStatus =
-          lockCurrentStatus === this.platform.Characteristic.LockCurrentState.SECURED ||
-          lockCurrentStatus === this.platform.Characteristic.LockCurrentState.UNSECURED
-            ? lockCurrentStatus
-            : undefined;
+        this.platform.log.debug(this.accessory.context.device.devicename, lock.doorstatus);
+        let lockStatus;
 
-        this.lockStates.locked = lockCurrentStatus;
+        switch (lock.doorstatus) {
+          case 'Locked':
+            lockStatus = this.platform.Characteristic.LockCurrentState.SECURED;
+            break;
+          case 'Unlocked':
+            lockStatus = this.platform.Characteristic.LockCurrentState.UNSECURED;
+            break;
+          case 'Jammed':
+            lockStatus = this.platform.Characteristic.LockCurrentState.JAMMED;
+            break;
+          default:
+            lockStatus = this.platform.Characteristic.LockCurrentState.UNKNOWN;
+        }
+
         this.service.updateCharacteristic(
           this.platform.Characteristic.LockCurrentState,
-          lockCurrentStatus,
+          lockStatus,
         );
-
-        if (lockTargetStatus) {
-          this.lockStates.isLocking = lockTargetStatus;
+        if (lockStatus !== this.lockStates.locked) {
+          // the lock has been manually operated, so we sync LockTargetState too.
+          this.lockStates.isLocking = lockStatus;
           this.service.updateCharacteristic(
             this.platform.Characteristic.LockTargetState,
-            lockTargetStatus,
+            lockStatus,
           );
         }
+        this.lockStates.locked = lockStatus;
 
         this.batterylevel = lock.batterypercentage;
         this.batteryservice.updateCharacteristic(
           this.platform.Characteristic.BatteryLevel,
           this.batterylevel,
         );
+        if (this.batterylevel <= LOW_BATTERY_LEVEL) {
+          this.batteryservice.updateCharacteristic(
+            this.platform.Characteristic.StatusLowBattery,
+            this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW,
+          );
+        } else {
+          this.batteryservice.updateCharacteristic(
+            this.platform.Characteristic.StatusLowBattery,
+            this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL,
+          );
+        }
         this.accessory
           .getService(this.platform.Service.AccessoryInformation)!
           .setCharacteristic(this.platform.Characteristic.SerialNumber, lock.serialnumber);
@@ -171,101 +187,5 @@ export class KwiksetHaloAccessory {
         );
       }
     });
-  }
-
-  /**
-   * Handle the "GET" requests from HomeKit
-   * These are sent when HomeKit wants to know the current state of the accessory, for example, checking if a Light bulb is on.
-   *
-   * GET requests should return as fast as possible. A long delay here will result in
-   * HomeKit being unresponsive and a bad user experience in general.
-   *
-   * If your device takes time to respond you should update the status of your device
-   * asynchronously instead using the `updateCharacteristic` method instead.
-
-   * @example
-   * this.service.updateCharacteristic(this.platform.Characteristic.On, true)
-   */
-  async getIsLocked(): Promise<CharacteristicValue> {
-    // implement your own code to check if the device is on
-    const isLocked = this.lockStates.locked;
-
-    // if you need to return an error to show the device as "Not Responding" in the Home app:
-    // throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
-
-    apiRequest(this.platform.log, {
-      path: `prod_v1/devices_v2/${this.accessory.context.device.deviceid}`,
-      method: 'GET',
-    })
-      .then((response) => response.json())
-      .then((data: any) => data.data[0])
-      .then((lock) => {
-        let lockStatus;
-
-        switch (lock.doorstatus) {
-          case 'Locked':
-            lockStatus = this.platform.Characteristic.LockCurrentState.SECURED;
-            break;
-          case 'Unlocked':
-            lockStatus = this.platform.Characteristic.LockCurrentState.UNSECURED;
-            break;
-          case 'Jammed':
-            lockStatus = this.platform.Characteristic.LockCurrentState.JAMMED;
-            break;
-          default:
-            lockStatus = this.platform.Characteristic.LockCurrentState.UNKNOWN;
-        }
-
-        this.service.updateCharacteristic(
-          this.platform.Characteristic.LockCurrentState,
-          lockStatus,
-        );
-        if (lockStatus !== this.lockStates.locked) {
-          // the lock has been manually operated, so we sync LockTargetState too.
-          this.lockStates.isLocking = lockStatus;
-          this.service.updateCharacteristic(
-            this.platform.Characteristic.LockTargetState,
-            lockStatus,
-          );
-        }
-        this.batterylevel = lock.batterypercentage;
-        this.batteryservice.updateCharacteristic(
-          this.platform.Characteristic.BatteryLevel,
-          this.batterylevel,
-        );
-        this.lockStates.locked = lockStatus;
-      });
-
-    return isLocked;
-  }
-
-  /**
-   * Handle the "GET" requests from HomeKit
-   * These are sent when HomeKit wants to know the current state of the accessory, for example, checking if a Light bulb is on.
-   *
-   * GET requests should return as fast as possible. A long delay here will result in
-   * HomeKit being unresponsive and a bad user experience in general.
-   *
-   * If your device takes time to respond you should update the status of your device
-   * asynchronously instead using the `updateCharacteristic` method instead.
-
-   * @example
-   * this.service.updateCharacteristic(this.platform.Characteristic.On, true)
-   */
-  async getShouldLock(): Promise<CharacteristicValue> {
-    // implement your own code to check if the device is on
-    const isLocking = this.lockStates.isLocking;
-
-    // if you need to return an error to show the device as "Not Responding" in the Home app:
-    // throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
-
-    return isLocking;
-  }
-
-  async handleStatusLowBatteryGet(): Promise<CharacteristicValue> {
-    if (this.batterylevel <= this.lowBatteryLevel) {
-      return this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW;
-    }
-    return this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
   }
 }

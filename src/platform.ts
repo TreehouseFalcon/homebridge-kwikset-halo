@@ -9,7 +9,7 @@ import {
   UnknownContext,
 } from 'homebridge';
 
-import { PLATFORM_NAME, PLUGIN_NAME, UPDATE_ACTUAL_LOCK_STATE_INTERVAL } from './const';
+import { PLATFORM_NAME, PLUGIN_NAME } from './const';
 import { KwiksetHaloAccessory } from './lock';
 import { apiRequest, fetchDevices, kwiksetLogin } from './kwikset';
 
@@ -129,37 +129,6 @@ export class KwiksetHaloPlatform implements DynamicPlatformPlugin {
     });
     if (staleAccessories.length > 0) {
       this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, staleAccessories);
-    }
-
-    setInterval(() => {
-      this.reflectActualState();
-    }, UPDATE_ACTUAL_LOCK_STATE_INTERVAL);
-  }
-
-  async reflectActualState() {
-    const locks = await fetchDevices(this.log, this.homeId);
-
-    for (const accessory of this.accessories) {
-      const service = accessory.getService(this.Service.LockMechanism);
-      service?.updateCharacteristic(
-        this.Characteristic.LockCurrentState,
-        this.getLockStateFromLockStatus(
-          locks.find((lock) => lock.deviceid === accessory.context.device.deviceid).lockstatus,
-        ),
-      );
-    }
-  }
-
-  getLockStateFromLockStatus(status: string) {
-    switch (status) {
-      case 'Locked':
-        return this.Characteristic.LockCurrentState.SECURED;
-      case 'Unlocked':
-        return this.Characteristic.LockCurrentState.UNSECURED;
-      case 'Jammed':
-        return this.Characteristic.LockCurrentState.JAMMED;
-      default:
-        return this.Characteristic.LockCurrentState.UNKNOWN;
     }
   }
 }
