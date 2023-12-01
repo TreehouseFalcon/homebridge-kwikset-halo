@@ -10,6 +10,9 @@ import { KwiksetHaloPlatform } from './platform';
  */
 export class KwiksetHaloAccessory {
   public service: Service;
+  public batteryservice: Service;
+  private batterylevel;
+  lowBatteryLevel = 40;
 
   /**
    * These are just used to create a working example
@@ -58,6 +61,17 @@ export class KwiksetHaloAccessory {
       .onGet(this.getShouldLock.bind(this))
       .onSet(this.setShouldLock.bind(this));
 
+    // get the Battery service if it exists, otherwise create a new Battery service
+    // you can create multiple services for each accessory
+    this.batteryservice =
+      this.accessory.getService(this.platform.Service.Battery) ||
+      this.accessory.addService(this.platform.Service.Battery);
+
+    // create handlers for required characteristics
+    this.batteryservice
+      .getCharacteristic(this.platform.Characteristic.StatusLowBattery)
+      .onGet(this.handleStatusLowBatteryGet.bind(this));
+
     /**
      * Creating multiple services of the same type.
      *
@@ -96,6 +110,15 @@ export class KwiksetHaloAccessory {
             lockTargetStatus,
           );
         }
+
+        this.batterylevel = lock.batterypercentage;
+        this.batteryservice.updateCharacteristic(
+          this.platform.Characteristic.BatteryLevel,
+          this.batterylevel,
+        );
+        this.accessory
+          .getService(this.platform.Service.AccessoryInformation)!
+          .setCharacteristic(this.platform.Characteristic.SerialNumber, lock.serialnumber);
       });
   }
 
@@ -205,6 +228,11 @@ export class KwiksetHaloAccessory {
             lockStatus,
           );
         }
+        this.batterylevel = lock.batterypercentage;
+        this.batteryservice.updateCharacteristic(
+          this.platform.Characteristic.BatteryLevel,
+          this.batterylevel,
+        );
         this.lockStates.locked = lockStatus;
       });
 
@@ -232,5 +260,12 @@ export class KwiksetHaloAccessory {
     // throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
 
     return isLocking;
+  }
+
+  async handleStatusLowBatteryGet(): Promise<CharacteristicValue> {
+    if (this.batterylevel <= this.lowBatteryLevel) {
+      return this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW;
+    }
+    return this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
   }
 }
