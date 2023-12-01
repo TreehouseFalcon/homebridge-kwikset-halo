@@ -1,6 +1,6 @@
 import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge';
 import { apiRequest } from './kwikset';
-
+import { UPDATE_ACTUAL_LOCK_STATE_INTERVAL, LOW_BATTERY_LEVEL } from './const';
 import { KwiksetHaloPlatform } from './platform';
 
 /**
@@ -12,7 +12,6 @@ export class KwiksetHaloAccessory {
   public service: Service;
   public batteryservice: Service;
   private batterylevel;
-  lowBatteryLevel = 40;
 
   /**
    * These are just used to create a working example
@@ -75,7 +74,7 @@ export class KwiksetHaloAccessory {
     this.pollLock();
     setInterval(() => {
       this.pollLock();
-    }, 30000);
+    }, UPDATE_ACTUAL_LOCK_STATE_INTERVAL);
   }
 
   async pollLock() {
@@ -122,7 +121,7 @@ export class KwiksetHaloAccessory {
           this.platform.Characteristic.BatteryLevel,
           this.batterylevel,
         );
-        if (this.batterylevel <= this.lowBatteryLevel) {
+        if (this.batterylevel <= LOW_BATTERY_LEVEL) {
           this.batteryservice.updateCharacteristic(
             this.platform.Characteristic.StatusLowBattery,
             this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW,

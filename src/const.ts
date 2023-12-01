@@ -15,4 +15,5 @@ export const COGNITO_AWS_REGION = 'us-east-1';
 export const API_HOST = 'ynk95r1v52.execute-api.us-east-1.amazonaws.com';
 export const API_USER_AGENT = 'KwiksetHaloHomebridge/0.0.1';
 
-export const UPDATE_ACTUAL_LOCK_STATE_INTERVAL = 1 * 60 * 1000;
+export const UPDATE_ACTUAL_LOCK_STATE_INTERVAL = 1 * 30 * 1000;
+export const LOW_BATTERY_LEVEL = 40;
