@@ -135,6 +135,11 @@ export class KwiksetHaloAccessory {
         this.accessory
           .getService(this.platform.Service.AccessoryInformation)!
           .setCharacteristic(this.platform.Characteristic.SerialNumber, lock.serialnumber);
+      })
+      .catch((err) => {
+        this.platform.log.warn(
+          `Failed to poll status for ${this.accessory.context.device.devicename}: ${err}`,
+        );
       });
   }
 
@@ -186,6 +191,10 @@ export class KwiksetHaloAccessory {
           this.lockStates.locked,
         );
       }
+    }).catch((err) => {
+      this.platform.log.warn(
+        `Failed to ${action} ${this.accessory.context.device.devicename}: ${err}`,
+      );
     });
   }
 }

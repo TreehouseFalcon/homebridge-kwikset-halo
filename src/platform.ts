@@ -59,7 +59,9 @@ export class KwiksetHaloPlatform implements DynamicPlatformPlugin {
       }
 
       // run the method to discover / register your devices as accessories
-      this.discoverDevices();
+      this.discoverDevices().catch((err) => {
+        this.log.error(`Failed to discover devices: ${err}`);
+      });
     });
   }
 
