@@ -17,8 +17,14 @@ export class KwiksetHaloAccessory {
    * These are just used to create a working example
    * You should implement your own code to track the state of your accessory
    */
-  private lockStates = {
-    locked: this.platform.Characteristic.LockCurrentState.UNSECURED,
+  private lockStates: {
+    locked: CharacteristicValue | null;
+    isLocking: CharacteristicValue;
+  } = {
+    // null forces the first poll after each start to sync LockTargetState, even
+    // when the real state is UNSECURED, so a stale target from a request
+    // interrupted by a restart doesn't get stuck (e.g. "Locking..." in Home app).
+    locked: null,
     isLocking: this.platform.Characteristic.LockTargetState.UNSECURED,
   };
 
