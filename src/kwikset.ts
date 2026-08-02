@@ -192,7 +192,6 @@ export const kwiksetLogin = async (config, log, api) => {
       log.debug('Credentials saved!');
     } else if (user.challengeName === undefined) {
       log.info('No auth challenge, proceeding...');
-      return true;
     } else {
       log.error(`Unknown auth challenge name ${user.challengeName}`);
       return false;
