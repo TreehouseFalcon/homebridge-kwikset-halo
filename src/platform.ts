@@ -86,7 +86,14 @@ export class KwiksetHaloPlatform implements DynamicPlatformPlugin {
     })
       .then((response) => response.json())
       .then((data: any) => data.data);
-    this.homeId = homes.find((home) => home.homename === this.config.homeName).homeid;
+    const home = homes?.find((home) => home.homename === this.config.homeName);
+    if (!home) {
+      const count = homes?.length ?? 0;
+      throw new Error(
+        `Could not find home "${this.config.homeName}" (API returned ${count} homes) — check config or login`,
+      );
+    }
+    this.homeId = home.homeid;
 
     const locks = await fetchDevices(this.log, this.homeId);
 
